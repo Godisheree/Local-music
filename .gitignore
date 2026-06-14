@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Build output
+client/dist/
+
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archives & binaries
+*.zip
+*.rar
+*.7z
+ffmpeg-8.1.1-essentials_build/
+
+# Design reference files
+stitch_website_enhancement_project/
+stitch_design/
+
+# Screenshots
+Screenshot*.png
+*.png
+!client/public/icons/*.png
+
+# Database files
+*.db
+server/database.db
+
+# Test music files
+server/music/*.mp3
+server/music/*.wav
+server/music/*.flac
+
+# Backup / old components
+client/src/_old_components/
+
+# Qoder config
+.qoder/
+
+# Logs
+*.log
