@@ -3,6 +3,34 @@ const router = express.Router();
 const path = require('path');
 const { getDb, queryAll, queryGet, queryRun } = require('../database');
 
+// Helper untuk membersihkan dan memisahkan judul & artis dari YouTube
+function parseYoutubeTitle(rawTitle, rawOwner) {
+  let cleanTitle = rawTitle
+    .replace(/\(.*?\)/g, '')
+    .replace(/\[.*?\]/g, '')
+    .replace(/Lyric Video/gi, '')
+    .replace(/Lyrics/gi, '')
+    .replace(/Official Video/gi, '')
+    .replace(/Official Audio/gi, '')
+    .replace(/Official Music Video/gi, '')
+    .replace(/HD/gi, '')
+    .replace(/4K/gi, '')
+    .trim();
+
+  if (cleanTitle.includes(' - ')) {
+    const parts = cleanTitle.split(' - ');
+    const artist = parts[0].trim();
+    const title = parts.slice(1).join(' - ').trim();
+    return { artist, title };
+  }
+
+  let artist = rawOwner || 'Unknown Artist';
+  if (artist.endsWith(' - Topic')) {
+    artist = artist.replace(' - Topic', '').trim();
+  }
+  return { artist, title: cleanTitle };
+}
+
 // Helper untuk mencari ID video YouTube
 async function searchYouTube(query) {
   const apiKey = process.env.YOUTUBE_API_KEY;
@@ -96,14 +124,15 @@ router.get('/search-online', async (req, res) => {
           }
         }
 
-        const title = v.title?.runs?.[0]?.text || 'Unknown Title';
-        const artist = v.ownerText?.runs?.[0]?.text || 'Unknown Artist';
+        const rawTitle = v.title?.runs?.[0]?.text || 'Unknown Title';
+        const rawOwner = v.ownerText?.runs?.[0]?.text || 'Unknown Artist';
+        const parsed = parseYoutubeTitle(rawTitle, rawOwner);
 
         return {
           id: `online_${videoId}`,
           mbid: `yt-${videoId}`,
-          title: title,
-          artist: artist,
+          title: parsed.title,
+          artist: parsed.artist,
           album: 'YouTube Stream',
           releaseMbid: null,
           duration: duration,
@@ -296,11 +325,15 @@ router.post('/online-radio', async (req, res) => {
           else if (parts.length === 1) duration = parts[0];
         }
 
+        const rawTitle = v.title?.runs?.[0]?.text || 'Unknown Title';
+        const rawOwner = v.ownerText?.runs?.[0]?.text || 'Unknown Artist';
+        const parsed = parseYoutubeTitle(rawTitle, rawOwner);
+
         return {
           id: `online_${videoId}`, // dummy ID untuk React keys
           mbid: `yt-${videoId}`,
-          title: v.title?.runs?.[0]?.text || 'Unknown Title',
-          artist: v.ownerText?.runs?.[0]?.text || 'Unknown Artist',
+          title: parsed.title,
+          artist: parsed.artist,
           album: 'YouTube Auto-play',
           duration: duration,
           year: new Date().getFullYear(),

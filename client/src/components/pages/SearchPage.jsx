@@ -141,7 +141,7 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
                       className={`flex items-center gap-4 p-2 rounded-lg cursor-pointer group transition-colors ${
                         isActive ? 'bg-primary/10' : 'hover:bg-surface-container'
                       }`}
-                      onClick={() => onPlay(song, onlineSongs)}
+                      onClick={() => onPlay(song, [song])}
                     >
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
                         {song.coverArtUrl ? (
