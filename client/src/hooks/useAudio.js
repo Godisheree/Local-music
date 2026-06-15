@@ -76,13 +76,13 @@ export function useAudio() {
     setCurrentTime(0)
     setDuration(0)
 
-    const isYoutube = song.youtube_id || !song.filepath || song.filepath.startsWith('online:') || song.filepath.startsWith('youtube:');
+    const isYoutube = song.youtube_id || song.youtubeId || !song.filepath || song.filepath.startsWith('online:') || song.filepath.startsWith('youtube:');
 
     if (isYoutube) {
       activePlayerRef.current = 'youtube'
       setCurrentSong(song)
 
-      let videoId = song.youtube_id;
+      let videoId = song.youtube_id || song.youtubeId;
       if (!videoId) {
         if (song.filepath?.startsWith('youtube:')) {
           videoId = song.filepath.split(':')[1];

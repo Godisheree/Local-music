@@ -22,22 +22,31 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-initDatabase().then(() => {
-  app.listen(PORT, HOST, () => {
-    console.log(`Server jalan di http://${HOST}:${PORT}`);
-    if (HOST === '0.0.0.0') {
-      const os = require('os');
-      const nets = os.networkInterfaces();
-      for (const name of Object.keys(nets)) {
-        for (const net of nets[name]) {
-          if (net.family === 'IPv4' && !net.internal) {
-            console.log(`  -> LAN: http://${net.address}:${PORT}`);
+if (!process.env.VERCEL) {
+  initDatabase().then(() => {
+    app.listen(PORT, HOST, () => {
+      console.log(`Server jalan di http://${HOST}:${PORT}`);
+      if (HOST === '0.0.0.0') {
+        const os = require('os');
+        const nets = os.networkInterfaces();
+        for (const name of Object.keys(nets)) {
+          for (const net of nets[name]) {
+            if (net.family === 'IPv4' && !net.internal) {
+              console.log(`  -> LAN: http://${net.address}:${PORT}`);
+            }
           }
         }
       }
-    }
+    });
+  }).catch(err => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
   });
-}).catch(err => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
-});
+} else {
+  // Jalankan inisialisasi database di serverless Vercel
+  initDatabase().catch(err => {
+    console.error('Failed to initialize database on Vercel:', err);
+  });
+}
+
+module.exports = app;

@@ -53,35 +53,67 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 2. Cari lagu online menggunakan MusicBrainz
+// 2. Cari lagu online menggunakan YouTube Scraper (Sangat Akurat & Cepat)
 router.get('/search-online', async (req, res) => {
   const { query } = req.query;
   if (!query) return res.status(400).json({ error: 'Query parameter is required' });
 
   try {
-    const url = `https://musicbrainz.org/ws/2/recording/?query=recording:${encodeURIComponent(query)}&fmt=json`;
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'LocalMusicPlayer/1.0.0 (https://github.com/Godisheree/Local-music)' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+      }
     });
-    const data = await response.json();
+    const html = await response.text();
+    const match = html.match(/var ytInitialData = ({.*?});/);
+    if (!match) {
+      return res.json([]);
+    }
 
-    const recordings = data.recordings || [];
-    const results = recordings.map(rec => {
-      const releaseMbid = rec.releases?.[0]?.id || '';
-      const year = rec.releases?.[0]?.date ? new Date(rec.releases[0].date).getFullYear() : null;
-      return {
-        mbid: rec.id,
-        title: rec.title,
-        artist: rec['artist-credit']?.map(ac => ac.name).join(', ') || 'Unknown Artist',
-        album: rec.releases?.[0]?.title || 'Unknown Album',
-        releaseMbid: releaseMbid,
-        duration: rec.length ? Math.round(rec.length / 1000) : 0,
-        year: year,
-        coverArtUrl: releaseMbid ? `https://coverartarchive.org/release/${releaseMbid}/front-250` : null
-      };
-    });
+    const data = JSON.parse(match[1]);
+    const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents;
+    if (!contents) {
+      return res.json([]);
+    }
 
-    res.json(results);
+    const results = contents
+      .filter(c => c.videoRenderer)
+      .map(c => {
+        const v = c.videoRenderer;
+        const videoId = v.videoId;
+        const durationStr = v.lengthText ? v.lengthText.simpleText : '0:00';
+        
+        // Parse durasi (misal "4:56" -> 296 detik)
+        let duration = 0;
+        if (durationStr && durationStr !== 'Unknown') {
+          const parts = durationStr.replace('.', ':').split(':').map(Number);
+          if (parts.length === 3) {
+            duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          } else if (parts.length === 2) {
+            duration = parts[0] * 60 + parts[1];
+          } else if (parts.length === 1) {
+            duration = parts[0];
+          }
+        }
+
+        const title = v.title?.runs?.[0]?.text || 'Unknown Title';
+        const artist = v.ownerText?.runs?.[0]?.text || 'Unknown Artist';
+
+        return {
+          mbid: `yt-${videoId}`,
+          title: title,
+          artist: artist,
+          album: 'YouTube Stream',
+          releaseMbid: null,
+          duration: duration,
+          year: new Date().getFullYear(),
+          coverArtUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          youtubeId: videoId
+        };
+      });
+
+    res.json(results.slice(0, 15)); // Batasi 15 hasil teratas
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
