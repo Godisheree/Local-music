@@ -2,10 +2,14 @@ function NowPlayingDesktop({ currentSong, isPlaying }) {
   if (!currentSong) return null
 
   return (
-    <div className="hidden xl:flex xl:flex-col xl:w-80 bg-surface-container-low border-l border-outline-variant/20 p-6">
+    <div className="hidden xl:flex xl:flex-col fixed right-0 top-16 bottom-24 w-80 bg-surface-container-low border-l border-outline-variant/20 p-6 z-30">
       {/* Album Art */}
       <div className="w-full aspect-square rounded-2xl overflow-hidden album-glow bg-surface-variant flex items-center justify-center mb-6">
-        <span className="material-symbols-outlined text-secondary-fixed-dim text-[80px]">library_music</span>
+        {currentSong.cover_art_url ? (
+          <img src={currentSong.cover_art_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="material-symbols-outlined text-secondary-fixed-dim text-[80px]">library_music</span>
+        )}
       </div>
 
       {/* Track Info */}

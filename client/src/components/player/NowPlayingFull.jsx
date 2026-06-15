@@ -22,7 +22,11 @@ function NowPlayingFull({ currentSong, isPlaying, progress, currentTime, duratio
       <main className="flex-1 flex flex-col items-center justify-center px-container-margin">
         {/* Album Art */}
         <div className="w-full max-w-[320px] aspect-square rounded-[2rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-8 bg-surface-variant flex items-center justify-center">
-          <span className="material-symbols-outlined text-secondary-fixed-dim text-[80px]">library_music</span>
+          {currentSong?.cover_art_url ? (
+            <img src={currentSong.cover_art_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="material-symbols-outlined text-secondary-fixed-dim text-[80px]">library_music</span>
+          )}
         </div>
 
         {/* Track Info */}

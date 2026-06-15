@@ -69,7 +69,11 @@ function DesktopPlayer({ isPlaying, currentTime, duration, volume, onPlay, onPau
       {/* Left: Track info */}
       <div className="flex items-center gap-3 w-56 shrink-0">
         <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
-          <span className="material-symbols-outlined text-secondary-fixed-dim">music_note</span>
+          {currentSong?.cover_art_url ? (
+            <img src={currentSong.cover_art_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="material-symbols-outlined text-secondary-fixed-dim">music_note</span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-body-md text-body-md text-on-background truncate">{currentSong?.title || 'No Track'}</p>

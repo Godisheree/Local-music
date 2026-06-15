@@ -31,6 +31,9 @@ function App() {
   const [showTimerModal, setShowTimerModal] = useState(false)
   const [activeTab, setActiveTab] = useState('library')
   const [npOpen, setNpOpen] = useState(false)
+  const [enrichmentStatus, setEnrichmentStatus] = useState({ running: false, total: 0, enriched: 0, pending: 0, current: null, errors: 0 })
+  const [enriching, setEnriching] = useState(false)
+  const enrichPollRef = useRef(null)
   const sleepTimerRef = useRef(null)
 
   const audio = useAudio()
@@ -116,6 +119,54 @@ function App() {
     setScanning(false)
   }
 
+  const saveSongToLibrary = async (song) => {
+    try {
+      const { data } = await axios.post('/api/songs', {
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration,
+        mbid: song.mbid,
+        releaseMbid: song.releaseMbid || song.release_mbid,
+        year: song.year,
+        coverArtUrl: song.coverArtUrl || song.cover_art_url,
+        youtubeId: song.youtubeId || song.youtube_id
+      })
+      await fetchSongs()
+      return data
+    } catch (err) {
+      console.error('Failed to save song to library:', err)
+    }
+  }
+
+  const enrichLibrary = async () => {
+    if (enriching) return
+    setEnriching(true)
+    try {
+      const { data } = await axios.post('/api/enrichment/start')
+      if (data.total === 0 || !data.running) {
+        setEnriching(false)
+        return
+      }
+      setEnrichmentStatus(data)
+      enrichPollRef.current = setInterval(async () => {
+        try {
+          const { data: status } = await axios.get('/api/enrichment/status')
+          setEnrichmentStatus(status)
+          if (!status.running) {
+            clearInterval(enrichPollRef.current)
+            enrichPollRef.current = null
+            setEnriching(false)
+            await fetchSongs()
+          }
+        } catch (err) { console.error('Enrichment poll failed:', err) }
+      }, 2000)
+    } catch (err) {
+      console.error('Enrichment failed:', err)
+      setEnriching(false)
+    }
+  }
+
   const createPlaylist = async (name) => {
     try { await axios.post('/api/playlists', { name, description: '' }); fetchPlaylists() }
     catch (err) { console.error('Failed to create playlist:', err) }
@@ -156,7 +207,17 @@ function App() {
       case 'home':
         return <HomePage songs={songs} currentSong={audio.currentSong} isPlaying={audio.isPlaying} onPlay={playSong} />
       case 'search':
-        return <SearchPage songs={songs} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onPlay={playSong} currentSong={audio.currentSong} isPlaying={audio.isPlaying} />
+        return (
+          <SearchPage 
+            songs={songs} 
+            searchQuery={searchQuery} 
+            setSearchQuery={setSearchQuery} 
+            onPlay={playSong} 
+            currentSong={audio.currentSong} 
+            isPlaying={audio.isPlaying} 
+            saveSongToLibrary={saveSongToLibrary}
+          />
+        )
       case 'library':
       default:
         return (
@@ -189,13 +250,22 @@ function App() {
           </div>
           <h1 className="text-headline-md text-headline-md text-primary font-bold">SoundScape</h1>
         </div>
-        <button
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors active:scale-95"
-          onClick={scanLibrary}
-          disabled={scanning}
-        >
-          <span className="material-symbols-outlined text-on-surface-variant">{scanning ? 'hourglass_empty' : 'settings'}</span>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors active:scale-95"
+            onClick={enrichLibrary}
+            disabled={enriching}
+          >
+            <span className="material-symbols-outlined text-on-surface-variant">{enriching ? 'hourglass_empty' : 'travel_explore'}</span>
+          </button>
+          <button
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors active:scale-95"
+            onClick={scanLibrary}
+            disabled={scanning}
+          >
+            <span className="material-symbols-outlined text-on-surface-variant">{scanning ? 'hourglass_empty' : 'settings'}</span>
+          </button>
+        </div>
       </header>
 
       {/* Desktop Layout */}
@@ -207,6 +277,9 @@ function App() {
         deletePlaylist={deletePlaylist}
         scanLibrary={scanLibrary}
         scanning={scanning}
+        enrichLibrary={enrichLibrary}
+        enriching={enriching}
+        enrichmentStatus={enrichmentStatus}
         selectedPlaylist={selectedPlaylist}
         setSelectedPlaylist={setSelectedPlaylist}
       />
@@ -219,7 +292,7 @@ function App() {
       />
 
       {/* Main Content */}
-      <main className="md:ml-64 md:pt-16 pb-32 md:pb-28">
+      <main className={`md:ml-64 md:pt-16 pb-32 md:pb-28 ${audio.currentSong ? 'xl:mr-80' : ''}`}>
         <div className="px-container-margin md:px-8 pt-4 md:pt-6 max-w-7xl mx-auto">
           {renderPage()}
         </div>

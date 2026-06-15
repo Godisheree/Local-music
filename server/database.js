@@ -1,33 +1,59 @@
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
+const { createClient } = require('@libsql/client');
+require('dotenv').config();
 
-const dbPath = path.join(__dirname, 'database.db');
-let db = null;
+let client = null;
 
-function saveDb() {
-  if (db) {
-    const data = db.export();
-    fs.writeFileSync(dbPath, Buffer.from(data));
+function getDb() {
+  if (client) return client;
+
+  const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
+
+  if (!url) {
+    throw new Error("TURSO_DATABASE_URL is not set in environment variables.");
   }
+
+  client = createClient({
+    url,
+    authToken
+  });
+
+  return client;
 }
 
-async function getDb() {
-  if (db) return db;
+async function queryAll(sql, params = []) {
+  const db = getDb();
+  const res = await db.execute({ sql, args: params });
+  return res.rows;
+}
 
-  const SQL = await initSqlJs();
+async function queryGet(sql, params = []) {
+  const db = getDb();
+  const res = await db.execute({ sql, args: params });
+  return res.rows[0] || null;
+}
 
-  if (fs.existsSync(dbPath)) {
-    const buffer = fs.readFileSync(dbPath);
-    db = new SQL.Database(buffer);
-  } else {
-    db = new SQL.Database();
+async function queryRun(sql, params = []) {
+  const db = getDb();
+  const res = await db.execute({ sql, args: params });
+  return {
+    lastInsertRowid: res.lastInsertRowid ? Number(res.lastInsertRowid) : null,
+    changes: res.rowsAffected
+  };
+}
+
+async function queryRunBatch(operations) {
+  const db = getDb();
+  for (const { sql, params } of operations) {
+    await db.execute({ sql, args: params || [] });
   }
+  return { changes: 0 };
+}
 
-  db.run('PRAGMA journal_mode = WAL');
-  db.run('PRAGMA foreign_keys = ON');
+async function initDatabase() {
+  const db = getDb();
 
-  db.run(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS songs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -36,11 +62,19 @@ async function getDb() {
       duration INTEGER DEFAULT 0,
       filepath TEXT UNIQUE NOT NULL,
       filesize INTEGER DEFAULT 0,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      mbid TEXT,
+      release_mbid TEXT,
+      year INTEGER,
+      genre TEXT,
+      cover_art_url TEXT,
+      enriched INTEGER DEFAULT 0,
+      enriched_at TEXT,
+      youtube_id TEXT
     )
   `);
 
-  db.run(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS playlists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -49,7 +83,7 @@ async function getDb() {
     )
   `);
 
-  db.run(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS playlist_songs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       playlistId INTEGER NOT NULL,
@@ -60,39 +94,6 @@ async function getDb() {
       UNIQUE(playlistId, songId)
     )
   `);
-
-  saveDb();
-  return db;
 }
 
-function queryAll(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
-}
-
-function queryGet(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  let row = null;
-  if (stmt.step()) {
-    row = stmt.getAsObject();
-  }
-  stmt.free();
-  return row;
-}
-
-function queryRun(sql, params = []) {
-  db.run(sql, params);
-  const lastId = queryGet('SELECT last_insert_rowid() as id');
-  const changes = db.getRowsModified();
-  saveDb();
-  return { lastInsertRowid: lastId?.id, changes };
-}
-
-module.exports = { getDb, queryAll, queryGet, queryRun, saveDb };
+module.exports = { getDb, queryAll, queryGet, queryRun, queryRunBatch, initDatabase };

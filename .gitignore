@@ -23,7 +23,22 @@ desktop.ini
 *.zip
 *.rar
 *.7z
+*.tar.gz
 ffmpeg-8.1.1-essentials_build/
+
+# Sensitive files
+Token TUrso database.txt
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.webp
+*.ico
+!client/public/icons/*.png
+!client/public/icons/*.ico
 
 # Design reference files
 stitch_website_enhancement_project/
@@ -48,6 +63,8 @@ client/src/_old_components/
 
 # Qoder config
 .qoder/
+.agents/
+skills-lock.json
 
 # Logs
 *.log

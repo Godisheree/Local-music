@@ -138,6 +138,7 @@ function LibraryPage({ songs, playlists, currentSong, isPlaying, onPlay, selecte
                   <th className="text-left py-3 px-2 w-10">#</th>
                   <th className="text-left py-3 px-2">Title</th>
                   <th className="text-left py-3 px-2 hidden lg:table-cell">Album</th>
+                  <th className="text-left py-3 px-2 hidden xl:table-cell w-16">Year</th>
                   <th className="text-right py-3 px-2 w-20">Duration</th>
                   <th className="w-10"></th>
                 </tr>
@@ -172,7 +173,11 @@ function LibraryPage({ songs, playlists, currentSong, isPlaying, onPlay, selecte
                       <td className="py-2 px-2">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
-                            <span className="material-symbols-outlined text-secondary-fixed-dim text-[18px]">music_note</span>
+                            {song.cover_art_url ? (
+                              <img src={song.cover_art_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="material-symbols-outlined text-secondary-fixed-dim text-[18px]">music_note</span>
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className={`text-body-md text-body-md truncate ${isActive ? 'text-primary' : 'text-on-background'}`}>{song.title}</p>
@@ -182,6 +187,9 @@ function LibraryPage({ songs, playlists, currentSong, isPlaying, onPlay, selecte
                       </td>
                       <td className="py-2 px-2 hidden lg:table-cell">
                         <span className="text-body-sm text-body-sm text-secondary truncate">{song.album}</span>
+                      </td>
+                      <td className="py-2 px-2 hidden xl:table-cell">
+                        <span className="text-body-sm text-body-sm text-secondary-fixed-dim">{song.year || ''}</span>
                       </td>
                       <td className="py-2 px-2 text-right">
                         <span className={`text-label-sm text-label-sm ${isActive ? 'text-primary' : 'text-secondary-fixed-dim'}`}>

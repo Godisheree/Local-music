@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-function Sidebar({ activeTab, setActiveTab, playlists, createPlaylist, deletePlaylist, scanLibrary, scanning, selectedPlaylist, setSelectedPlaylist }) {
+function Sidebar({ activeTab, setActiveTab, playlists, createPlaylist, deletePlaylist, scanLibrary, scanning, enrichLibrary, enriching, enrichmentStatus, selectedPlaylist, setSelectedPlaylist }) {
   const [newName, setNewName] = useState('')
   const [showInput, setShowInput] = useState(false)
 
@@ -13,7 +13,7 @@ function Sidebar({ activeTab, setActiveTab, playlists, createPlaylist, deletePla
   }
 
   return (
-    <aside className="hidden md:flex md:flex-col fixed left-0 top-0 bottom-0 w-64 bg-surface-container-low border-r border-outline-variant/30 z-40">
+    <aside className="hidden md:flex md:flex-col fixed left-0 top-0 bottom-24 w-64 bg-surface-container-low border-r border-outline-variant/30 z-40">
       {/* Brand */}
       <div className="px-6 pt-6 pb-4">
         <h1 className="text-title-sm text-title-sm text-primary font-bold">Sonic Obsidian</h1>
@@ -103,7 +103,7 @@ function Sidebar({ activeTab, setActiveTab, playlists, createPlaylist, deletePla
       </div>
 
       {/* Footer */}
-      <div className="px-3 pb-4 border-t border-outline-variant/30 pt-4">
+      <div className="mt-auto px-3 pb-4 border-t border-outline-variant/30 pt-4 flex flex-col gap-1">
         <button
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-on-background hover:bg-surface-container transition-colors active:scale-95"
           onClick={scanLibrary}
@@ -113,6 +113,18 @@ function Sidebar({ activeTab, setActiveTab, playlists, createPlaylist, deletePla
             {scanning ? 'hourglass_empty' : 'refresh'}
           </span>
           <span className="text-body-sm text-body-sm">{scanning ? 'Scanning...' : 'Scan Library'}</span>
+        </button>
+        <button
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-on-background hover:bg-surface-container transition-colors active:scale-95"
+          onClick={enrichLibrary}
+          disabled={enriching}
+        >
+          <span className="material-symbols-outlined text-[20px]">
+            {enriching ? 'hourglass_empty' : 'travel_explore'}
+          </span>
+          <span className="text-body-sm text-body-sm">
+            {enriching ? `Enriching... ${enrichmentStatus.enriched}/${enrichmentStatus.total}` : 'Enrich Metadata'}
+          </span>
         </button>
       </div>
     </aside>

@@ -28,7 +28,9 @@ function HomePage({ songs, currentSong, isPlaying, onPlay }) {
               >
                 <div className="flex items-center gap-3 p-3">
                   <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
-                    {isActive && isPlaying ? (
+                    {song.cover_art_url ? (
+                      <img src={song.cover_art_url} alt="" className="w-full h-full object-cover" />
+                    ) : isActive && isPlaying ? (
                       <div className="flex items-end h-4">
                         <span className="playing-bar" />
                         <span className="playing-bar" />
@@ -69,15 +71,21 @@ function HomePage({ songs, currentSong, isPlaying, onPlay }) {
                   onClick={() => onPlay(song, recentSongs)}
                 >
                   <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-surface-variant flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.5)] group-hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)] transition-shadow">
-                    {isActive && isPlaying ? (
-                      <div className="flex items-end h-8">
-                        <span className="playing-bar" />
-                        <span className="playing-bar" />
-                        <span className="playing-bar" />
-                        <span className="playing-bar" />
-                      </div>
+                    {song.cover_art_url ? (
+                      <img src={song.cover_art_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="material-symbols-outlined text-secondary-fixed-dim text-[40px]">library_music</span>
+                      <>
+                        {isActive && isPlaying ? (
+                          <div className="flex items-end h-8">
+                            <span className="playing-bar" />
+                            <span className="playing-bar" />
+                            <span className="playing-bar" />
+                            <span className="playing-bar" />
+                          </div>
+                        ) : (
+                          <span className="material-symbols-outlined text-secondary-fixed-dim text-[40px]">library_music</span>
+                        )}
+                      </>
                     )}
                     <div className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.3)] opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all">
                       <span className="material-symbols-outlined fill text-on-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>

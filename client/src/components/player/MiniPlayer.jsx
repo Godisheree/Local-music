@@ -7,7 +7,11 @@ function MiniPlayer({ currentSong, isPlaying, progress, onPlayPause, onNext, onC
       onClick={onClick}
     >
       <div className="w-10 h-10 rounded-md overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
-        <span className="material-symbols-outlined text-secondary-fixed-dim text-[20px]">music_note</span>
+        {currentSong.cover_art_url ? (
+          <img src={currentSong.cover_art_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="material-symbols-outlined text-secondary-fixed-dim text-[20px]">music_note</span>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">

@@ -1,10 +1,11 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { getDb } = require('./database');
+const { getDb, initDatabase } = require('./database');
 const songsRouter = require('./routes/songs');
 const playlistsRouter = require('./routes/playlists');
 const spotifyRouter = require('./routes/spotify');
+const enrichmentRouter = require('./routes/enrichment');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,12 +16,13 @@ app.use(express.json());
 app.use('/api/songs', songsRouter);
 app.use('/api/playlists', playlistsRouter);
 app.use('/api/spotify', spotifyRouter);
+app.use('/api/enrichment', enrichmentRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-getDb().then(() => {
+initDatabase().then(() => {
   app.listen(PORT, HOST, () => {
     console.log(`Server jalan di http://${HOST}:${PORT}`);
     if (HOST === '0.0.0.0') {

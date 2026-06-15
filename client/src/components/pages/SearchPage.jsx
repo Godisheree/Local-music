@@ -1,10 +1,10 @@
-import { useSpotify } from '../../hooks/useSpotify'
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
+import axios from 'axios'
 
-function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, isPlaying }) {
-  const spotify = useSpotify()
-  const [spotifySongs, setSpotifySongs] = useState([])
-  const [loadingSpotify, setLoadingSpotify] = useState(false)
+function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, isPlaying, saveSongToLibrary }) {
+  const [onlineSongs, setOnlineSongs] = useState([])
+  const [loadingOnline, setLoadingOnline] = useState(false)
+  const [addingSongId, setAddingSongId] = useState(null)
 
   const genres = [
     { name: 'Pop', gradient: 'from-[#E13300] to-[#801D00]' },
@@ -17,26 +17,43 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
     { name: 'R&B', gradient: 'from-[#654ea3] to-[#3b2d6b]' },
   ]
 
-  // Search Spotify when query changes
+  // Search online & local when query changes
   useEffect(() => {
-    if (searchQuery.trim() && spotify.isLoggedIn) {
-      setLoadingSpotify(true)
-      spotify.searchTracks(searchQuery).then(results => {
-        setSpotifySongs(results)
-        setLoadingSpotify(false)
-      })
+    if (searchQuery.trim()) {
+      setLoadingOnline(true)
+      axios.get(`/api/songs/search-online?query=${encodeURIComponent(searchQuery)}`)
+        .then(({ data }) => {
+          setOnlineSongs(data)
+          setLoadingOnline(false)
+        })
+        .catch(err => {
+          console.error('Online search failed:', err)
+          setLoadingOnline(false)
+        })
     } else {
-      setSpotifySongs([])
+      setOnlineSongs([])
     }
-  }, [searchQuery, spotify.isLoggedIn])
+  }, [searchQuery])
 
-  const filteredSongs = searchQuery.trim()
+  const filteredLocalSongs = searchQuery.trim()
     ? songs.filter(s =>
         s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.album.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : []
+
+  const handleAddToLibrary = async (e, song) => {
+    e.stopPropagation()
+    setAddingSongId(song.mbid)
+    try {
+      await saveSongToLibrary(song)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setAddingSongId(null)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-section-stack">
@@ -61,13 +78,13 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
 
       {/* Search Results (when query exists) */}
       {searchQuery.trim() && (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-8">
           {/* Local Results */}
-          {filteredSongs.length > 0 && (
+          {filteredLocalSongs.length > 0 && (
             <div>
               <h2 className="text-title-sm text-title-sm text-on-background mb-3">Your Library</h2>
               <div className="flex flex-col gap-2">
-                {filteredSongs.slice(0, 5).map(song => {
+                {filteredLocalSongs.slice(0, 5).map(song => {
                   const isActive = currentSong?.id === song.id
                   return (
                     <div
@@ -75,15 +92,18 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
                       className={`flex items-center gap-4 p-2 rounded-lg cursor-pointer group transition-colors ${
                         isActive ? 'bg-primary/10' : 'hover:bg-surface-container'
                       }`}
-                      onClick={() => onPlay(song, filteredSongs)}
+                      onClick={() => onPlay(song, filteredLocalSongs)}
                     >
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
-                        {isActive && isPlaying ? (
+                        {song.cover_art_url ? (
+                          <img src={song.cover_art_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="material-symbols-outlined text-secondary-fixed-dim text-[20px]">music_note</span>
+                        )}
+                        {isActive && isPlaying && (
                           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                             <span className="material-symbols-outlined fill text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>equalizer</span>
                           </div>
-                        ) : (
-                          <span className="material-symbols-outlined text-secondary-fixed-dim text-[20px]">music_note</span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -97,82 +117,88 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
             </div>
           )}
 
-          {/* Spotify Results */}
-          {spotify.isLoggedIn && spotifySongs.length > 0 && (
-            <div>
-              <h2 className="text-title-sm text-title-sm text-on-background mb-3">Spotify</h2>
-              <div className="flex flex-col gap-2">
-                {spotifySongs.map(track => (
-                  <div
-                    key={track.id}
-                    className="flex items-center gap-4 p-2 rounded-lg hover:bg-surface-container transition-colors"
-                  >
-                    {track.album?.images?.[0] && (
-                      <img
-                        src={track.album.images[0].url}
-                        alt={track.name}
-                        className="w-12 h-12 rounded-lg object-cover shrink-0"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-body-md text-body-md truncate text-on-background">{track.name}</p>
-                      <p className="text-body-sm text-body-sm text-secondary truncate">
-                        {track.artists?.map(a => a.name).join(', ')}
-                      </p>
-                    </div>
-                    <a
-                      href={track.external_urls?.spotify}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1 rounded-full bg-primary text-primary-text text-body-sm hover:opacity-90 transition-opacity"
-                    >
-                      Open
-                    </a>
-                  </div>
-                ))}
+          {/* Online Music Search Results */}
+          <div>
+            <h2 className="text-title-sm text-title-sm text-primary mb-3">Online Search Results</h2>
+            {loadingOnline ? (
+              <div className="flex items-center gap-3 py-6 justify-center text-secondary-fixed-dim text-body-sm">
+                <span className="material-symbols-outlined animate-spin">sync</span>
+                Searching the cloud...
               </div>
-            </div>
-          )}
+            ) : onlineSongs.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {onlineSongs.map(song => {
+                  // Check if this online song already exists in local library
+                  const isAlreadySaved = songs.some(s => s.mbid === song.mbid)
+                  const isActive = currentSong?.mbid === song.mbid
 
-          {/* Login Prompt - always show when not logged in */}
-          {!spotify.isLoggedIn && (
-            <div className="flex flex-col items-center justify-center py-8 text-center bg-surface-container/50 rounded-xl border border-outline-variant/20">
-              <span className="material-symbols-outlined text-[48px] text-primary/40 mb-3">album</span>
-              <p className="text-title-sm text-title-sm text-on-background mb-2">Find more music on Spotify</p>
-              <p className="text-body-sm text-body-sm text-secondary-fixed-dim mb-4">Connect your account to search millions of songs</p>
-              <button
-                onClick={() => spotify.login()}
-                disabled={spotify.loading}
-                className="px-6 py-2.5 rounded-full bg-primary text-on-primary font-bold text-body-sm hover:opacity-90 transition-opacity disabled:opacity-50 active:scale-95"
-              >
-                {spotify.loading ? 'Connecting...' : 'Connect Spotify'}
-              </button>
-            </div>
-          )}
-
-          {/* Spotify loading indicator */}
-          {spotify.isLoggedIn && loadingSpotify && (
-            <div className="flex items-center justify-center py-4">
-              <p className="text-body-sm text-body-sm text-secondary-fixed-dim">Searching Spotify...</p>
-            </div>
-          )}
-
-          {/* No Results - only show when logged in or when both sources have no results */}
-          {spotify.isLoggedIn && filteredSongs.length === 0 && spotifySongs.length === 0 && !loadingSpotify && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <span className="material-symbols-outlined text-[64px] text-secondary-fixed-dim/30 mb-4">search_off</span>
-              <p className="text-title-sm text-title-sm text-secondary-fixed-dim">No results found</p>
-              <p className="text-body-sm text-body-sm text-secondary-fixed-dim/60 mt-1">Try a different search term</p>
-            </div>
-          )}
-
-          {/* No local results but not logged in - show hint */}
-          {!spotify.isLoggedIn && filteredSongs.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <span className="material-symbols-outlined text-[48px] text-secondary-fixed-dim/20 mb-3">library_music</span>
-              <p className="text-body-sm text-body-sm text-secondary-fixed-dim/60">No results in your library</p>
-            </div>
-          )}
+                  return (
+                    <div
+                      key={song.mbid}
+                      className={`flex items-center gap-4 p-2 rounded-lg cursor-pointer group transition-colors ${
+                        isActive ? 'bg-primary/10' : 'hover:bg-surface-container'
+                      }`}
+                      onClick={() => onPlay(song, onlineSongs)}
+                    >
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
+                        {song.coverArtUrl ? (
+                          <img
+                            src={song.coverArtUrl}
+                            alt={song.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                              e.target.nextSibling.style.display = 'inline-block'
+                            }}
+                          />
+                        ) : null}
+                        <span 
+                          className="material-symbols-outlined text-secondary-fixed-dim text-[20px]" 
+                          style={{ display: song.coverArtUrl ? 'none' : 'inline-block' }}
+                        >
+                          music_note
+                        </span>
+                        {isActive && isPlaying && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <span className="material-symbols-outlined fill text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>equalizer</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-body-md text-body-md truncate ${isActive ? 'text-primary' : 'text-on-background'}`}>{song.title}</p>
+                        <p className="text-body-sm text-body-sm text-secondary truncate">{song.artist}</p>
+                      </div>
+                      
+                      {/* Action buttons */}
+                      <button
+                        onClick={(e) => handleAddToLibrary(e, song)}
+                        disabled={isAlreadySaved || addingSongId === song.mbid}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                          isAlreadySaved 
+                            ? 'bg-primary/10 text-primary cursor-default'
+                            : 'bg-surface-container hover:bg-primary hover:text-on-primary text-on-background active:scale-90'
+                        }`}
+                        title={isAlreadySaved ? 'Added to Library' : 'Add to Library'}
+                      >
+                        {addingSongId === song.mbid ? (
+                          <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                        ) : isAlreadySaved ? (
+                          <span className="material-symbols-outlined text-[18px] fill" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-[18px]">add</span>
+                        )}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center text-secondary-fixed-dim/60">
+                <span className="material-symbols-outlined text-[32px] mb-2">cloud_off</span>
+                <p className="text-body-sm">No online results found for "{searchQuery}"</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -184,6 +210,7 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
               <div
                 key={genre.name}
                 className={`relative aspect-square rounded-xl overflow-hidden bg-gradient-to-br ${genre.gradient} cursor-pointer group active:scale-[0.98] hover:scale-[0.98] transition-transform`}
+                onClick={() => setSearchQuery(genre.name)}
               >
                 <p className="absolute top-4 left-4 text-title-sm text-title-sm text-white font-bold z-10">{genre.name}</p>
                 {/* Decorative rotated thumbnail */}

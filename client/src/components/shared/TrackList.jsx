@@ -72,12 +72,15 @@ function TrackList({ songs, currentSong, isPlaying, onPlay, playlists, addToPlay
             onTouchMove={handleTouchMove}
           >
             <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
-              {isActive && isPlaying ? (
+              {song.cover_art_url ? (
+                <img src={song.cover_art_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="material-symbols-outlined text-secondary-fixed-dim text-[20px]">music_note</span>
+              )}
+              {isActive && isPlaying && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <span className="material-symbols-outlined fill text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>equalizer</span>
                 </div>
-              ) : (
-                <span className="material-symbols-outlined text-secondary-fixed-dim text-[20px]">music_note</span>
               )}
             </div>
 
