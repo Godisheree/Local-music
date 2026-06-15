@@ -100,6 +100,7 @@ router.get('/search-online', async (req, res) => {
         const artist = v.ownerText?.runs?.[0]?.text || 'Unknown Artist';
 
         return {
+          id: `online_${videoId}`,
           mbid: `yt-${videoId}`,
           title: title,
           artist: artist,
@@ -108,7 +109,9 @@ router.get('/search-online', async (req, res) => {
           duration: duration,
           year: new Date().getFullYear(),
           coverArtUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-          youtubeId: videoId
+          youtubeId: videoId,
+          filepath: `youtube:${videoId}`,
+          format: 'mp3'
         };
       });
 

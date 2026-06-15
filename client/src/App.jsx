@@ -48,6 +48,16 @@ function App() {
 
   const getStreamUrl = (songId) => `${API_BASE}/api/songs/${songId}/stream`
 
+  const areSongsEqual = useCallback((s1, s2) => {
+    if (!s1 || !s2) return false
+    if (s1.id !== undefined && s2.id !== undefined && s1.id === s2.id) return true
+    if (s1.mbid && s2.mbid && s1.mbid === s2.mbid) return true
+    const yt1 = s1.youtubeId || s1.youtube_id
+    const yt2 = s2.youtubeId || s2.youtube_id
+    if (yt1 && yt2 && yt1 === yt2) return true
+    return false
+  }, [])
+
   const fetchSongs = useCallback(async () => {
     try {
       const { data } = await axios.get('/api/songs')
@@ -82,7 +92,7 @@ function App() {
         a.repeatCurrentSong()
       } else {
         if (queue.length === 0 || !a.currentSong) return
-        const idx = queue.findIndex(s => s.id === a.currentSong.id)
+        const idx = queue.findIndex(s => areSongsEqual(s, a.currentSong))
         if (idx < queue.length - 1) {
           const next = queue[idx + 1]
           a.load(getStreamUrl(next.id), next, next.format || 'mp3')
@@ -123,7 +133,7 @@ function App() {
     }
     window.addEventListener('song-ended', handleSongEnded)
     return () => window.removeEventListener('song-ended', handleSongEnded)
-  }, [queue, isAutoplay]) // Tambahkan isAutoplay ke dependency
+  }, [queue, isAutoplay, areSongsEqual]) // Tambahkan isAutoplay ke dependency
 
   // Sleep timer — gunakan sleepTimer langsung sebagai dependency agar re-create saat reset
   useEffect(() => {
@@ -153,7 +163,7 @@ function App() {
     
     if (isShuffle) {
       // Random song yang berbeda dari yang sedang diputar
-      const otherSongs = queue.filter(s => s.id !== a.currentSong.id)
+      const otherSongs = queue.filter(s => !areSongsEqual(s, a.currentSong))
       if (otherSongs.length > 0) {
         const randomIdx = Math.floor(Math.random() * otherSongs.length)
         playSong(otherSongs[randomIdx], queue)
@@ -161,17 +171,17 @@ function App() {
       return
     }
     
-    const idx = queue.findIndex(s => s.id === a.currentSong.id)
+    const idx = queue.findIndex(s => areSongsEqual(s, a.currentSong))
     if (idx < queue.length - 1) playSong(queue[idx + 1], queue)
     else if (a.loopMode === 'all') playSong(queue[0], queue)
-  }, [queue, isShuffle, playSong])
+  }, [queue, isShuffle, playSong, areSongsEqual])
 
   const playPrev = useCallback(() => {
     const a = audioRef.current
     if (queue.length === 0 || !a.currentSong) return
-    const idx = queue.findIndex(s => s.id === a.currentSong.id)
+    const idx = queue.findIndex(s => areSongsEqual(s, a.currentSong))
     if (idx > 0) playSong(queue[idx - 1], queue)
-  }, [queue, playSong])
+  }, [queue, playSong, areSongsEqual])
 
   const scanLibrary = async () => {
     setScanning(true)
