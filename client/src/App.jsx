@@ -27,6 +27,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [scanning, setScanning] = useState(false)
   const [isShuffle, setIsShuffle] = useState(false)
+  const [isAutoplay, setIsAutoplay] = useState(false)
   const [sleepTimer, setSleepTimer] = useState(null)
   const [showTimerModal, setShowTimerModal] = useState(false)
   const [activeTab, setActiveTab] = useState('library')
@@ -88,12 +89,41 @@ function App() {
         } else if (a.loopMode === 'all' && queue.length > 0) {
           const first = queue[0]
           a.load(getStreamUrl(first.id), first, first.format || 'mp3')
+        } else if (isAutoplay && a.currentSong) {
+          // Phase 4: Smart Autoplay (Local vs Online)
+          if (typeof a.currentSong.id === 'number') {
+            // Local Smart Autoplay (berdasarkan skor database lokal)
+            axios.get(`/api/songs/${a.currentSong.id}/radio`)
+              .then(res => {
+                if (res.data) {
+                  const recommendedSong = res.data
+                  setQueue(prev => [...prev, recommendedSong])
+                  a.load(getStreamUrl(recommendedSong.id), recommendedSong, recommendedSong.format || 'mp3')
+                }
+              })
+              .catch(err => console.error('Local Autoplay failed:', err))
+          } else {
+            // Online Smart Autoplay (berdasarkan algoritma pencarian YouTube mix)
+            axios.post(`/api/songs/online-radio`, { 
+              title: a.currentSong.title, 
+              artist: a.currentSong.artist 
+            })
+              .then(res => {
+                if (res.data) {
+                  const recommendedSong = res.data
+                  setQueue(prev => [...prev, recommendedSong])
+                  // Dummy URL karena YouTube player memutar via iframe, tidak butuh stream lokal
+                  a.load('', recommendedSong, recommendedSong.format || 'mp3')
+                }
+              })
+              .catch(err => console.error('Online Autoplay failed:', err))
+          }
         }
       }
     }
     window.addEventListener('song-ended', handleSongEnded)
     return () => window.removeEventListener('song-ended', handleSongEnded)
-  }, [queue]) // Hanya queue sebagai dependency — audio diakses via ref
+  }, [queue, isAutoplay]) // Tambahkan isAutoplay ke dependency
 
   // Sleep timer — gunakan sleepTimer langsung sebagai dependency agar re-create saat reset
   useEffect(() => {
@@ -363,6 +393,8 @@ function App() {
         onToggleLoop={audio.toggleLoopMode}
         isShuffle={isShuffle}
         onToggleShuffle={() => setIsShuffle(!isShuffle)}
+        isAutoplay={isAutoplay}
+        onToggleAutoplay={() => setIsAutoplay(!isAutoplay)}
         currentSong={audio.currentSong}
         sleepTimer={sleepTimer}
         formatTimerDisplay={formatTimerDisplay}
@@ -392,6 +424,8 @@ function App() {
           onToggleLoop={audio.toggleLoopMode}
           isShuffle={isShuffle}
           onToggleShuffle={() => setIsShuffle(!isShuffle)}
+          isAutoplay={isAutoplay}
+          onToggleAutoplay={() => setIsAutoplay(!isAutoplay)}
           onClose={() => setNpOpen(false)}
           playlistName={selectedPlaylist?.name}
           sleepTimer={sleepTimer}

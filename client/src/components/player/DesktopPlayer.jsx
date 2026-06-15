@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { formatTime } from '../../utils/formatTime'
 
-function DesktopPlayer({ isPlaying, currentTime, duration, volume, onPlay, onPause, onSeek, onEndSeek, onVolumeChange, onNext, onPrev, hasSong, loopMode, onToggleLoop, isShuffle, onToggleShuffle, currentSong, sleepTimer, formatTimerDisplay, onOpenTimerModal }) {
+function DesktopPlayer({ isPlaying, currentTime, duration, volume, onPlay, onPause, onSeek, onEndSeek, onVolumeChange, onNext, onPrev, hasSong, loopMode, onToggleLoop, isShuffle, onToggleShuffle, isAutoplay, onToggleAutoplay, currentSong, sleepTimer, formatTimerDisplay, onOpenTimerModal }) {
   const progressRef = useRef(null)
   const volumeRef = useRef(null)
   const draggingRef = useRef(null)
@@ -112,6 +112,14 @@ function DesktopPlayer({ isPlaying, currentTime, duration, volume, onPlay, onPau
             disabled={!hasSong}
           >
             <span className="material-symbols-outlined text-[20px]">{loopMode === 'one' ? 'repeat_one' : 'repeat'}</span>
+          </button>
+          <button
+            className={`w-8 h-8 flex items-center justify-center transition-colors active:scale-90 ${isAutoplay ? 'text-primary' : 'text-on-surface-variant hover:text-on-background'}`}
+            onClick={onToggleAutoplay}
+            disabled={!hasSong}
+            title="Auto-play (Radio Mode)"
+          >
+            <span className="material-symbols-outlined text-[20px]">all_inclusive</span>
           </button>
         </div>
         <div className="flex items-center gap-2 w-full">

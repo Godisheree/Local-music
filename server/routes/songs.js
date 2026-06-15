@@ -202,4 +202,124 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// 7. Smart Autoplay Recommendation (Radio Mode - Phase 4)
+router.get('/:id/radio', async (req, res) => {
+  try {
+    const baseSong = await queryGet('SELECT * FROM songs WHERE id = ?', [+req.params.id]);
+    if (!baseSong) return res.status(404).json({ error: 'Base song not found' });
+
+    // Fetch candidate songs (exclude the base song itself)
+    const candidates = await queryAll('SELECT * FROM songs WHERE id != ?', [+req.params.id]);
+    if (candidates.length === 0) return res.json(null);
+
+    const scoredCandidates = candidates.map(song => {
+      let score = 0;
+      
+      // 1. Genre Match (Weight: 40)
+      if (baseSong.genre && song.genre) {
+        const baseGenre = baseSong.genre.toLowerCase();
+        const candGenre = song.genre.toLowerCase();
+        if (baseGenre === candGenre) score += 40;
+        else if (baseGenre.includes(candGenre) || candGenre.includes(baseGenre)) score += 20;
+      }
+
+      // 2. Artist Match (Weight: 15)
+      // Usually radio plays DIFFERENT artists, but same artist is a strong vibe match.
+      if (baseSong.artist && song.artist && baseSong.artist.toLowerCase() === song.artist.toLowerCase()) {
+        score += 15;
+      }
+
+      // 3. Year/Era Match (Weight: 10)
+      if (baseSong.year && song.year) {
+        const diff = Math.abs(baseSong.year - song.year);
+        if (diff <= 3) score += 10;
+        else if (diff <= 10) score += 5;
+      }
+
+      // Add a tiny random factor (0-5) to prevent exact same playlist order every time
+      score += Math.random() * 5;
+
+      return { song, score };
+    });
+
+    // Sort by score DESC
+    scoredCandidates.sort((a, b) => b.score - a.score);
+
+    // Pick one of the top 3 randomly to add variety, fallback to top 1 if less than 3
+    const topCandidates = scoredCandidates.slice(0, 3);
+    const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)].song;
+
+    const result = { 
+      ...selected, 
+      format: selected.filepath.startsWith('http') || selected.filepath.includes(':') ? 'mp3' : path.extname(selected.filepath).toLowerCase().replace('.', '') 
+    };
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Online Smart Autoplay (YouTube Radio)
+router.post('/online-radio', async (req, res) => {
+  const { title, artist } = req.body;
+  try {
+    // Cari query untuk mendapatkan lagu mirip/sejenis di YouTube (menggunakan kata kunci 'mix' atau 'playlist')
+    const query = artist ? `${artist} mix` : `${title} music`;
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+      }
+    });
+    const html = await response.text();
+    const match = html.match(/var ytInitialData = ({.*?});/);
+    if (!match) return res.status(404).json({ error: 'No related songs found' });
+
+    const data = JSON.parse(match[1]);
+    const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents;
+    if (!contents) return res.status(404).json({ error: 'No related songs found' });
+
+    const results = contents
+      .filter(c => c.videoRenderer)
+      .map(c => {
+        const v = c.videoRenderer;
+        const videoId = v.videoId;
+        const durationStr = v.lengthText ? v.lengthText.simpleText : '0:00';
+        let duration = 0;
+        if (durationStr && durationStr !== 'Unknown') {
+          const parts = durationStr.replace('.', ':').split(':').map(Number);
+          if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          else if (parts.length === 2) duration = parts[0] * 60 + parts[1];
+          else if (parts.length === 1) duration = parts[0];
+        }
+
+        return {
+          id: `online_${videoId}`, // dummy ID untuk React keys
+          mbid: `yt-${videoId}`,
+          title: v.title?.runs?.[0]?.text || 'Unknown Title',
+          artist: v.ownerText?.runs?.[0]?.text || 'Unknown Artist',
+          album: 'YouTube Auto-play',
+          duration: duration,
+          year: new Date().getFullYear(),
+          coverArtUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          youtubeId: videoId,
+          filepath: `youtube:${videoId}`,
+          format: 'mp3'
+        };
+      });
+      
+    // Filter agar lagu yang sedang diputar tidak langsung diulang
+    const filtered = results.filter(r => !r.title.toLowerCase().includes((title || '').toLowerCase()));
+    
+    // Pilih acak dari top 5 rekomendasi YouTube
+    const candidates = filtered.slice(0, 5);
+    if (candidates.length === 0) return res.status(404).json({ error: 'No candidates' });
+    
+    const selected = candidates[Math.floor(Math.random() * candidates.length)];
+    res.json(selected);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

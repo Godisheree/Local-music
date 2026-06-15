@@ -1,6 +1,6 @@
 import { formatTime } from '../../utils/formatTime'
 
-function NowPlayingFull({ currentSong, isPlaying, progress, currentTime, duration, onPlayPause, onNext, onPrev, onSeek, loopMode, onToggleLoop, isShuffle, onToggleShuffle, onClose, playlistName, sleepTimer, formatTimerDisplay }) {
+function NowPlayingFull({ currentSong, isPlaying, progress, currentTime, duration, onPlayPause, onNext, onPrev, onSeek, loopMode, onToggleLoop, isShuffle, onToggleShuffle, isAutoplay, onToggleAutoplay, onClose, playlistName, sleepTimer, formatTimerDisplay }) {
   return (
     <div className="fixed inset-0 z-[60] bg-player-gradient flex flex-col md:hidden">
       {/* Header */}
@@ -99,8 +99,12 @@ function NowPlayingFull({ currentSong, isPlaying, progress, currentTime, duratio
 
         {/* Bottom Actions */}
         <div className="w-full max-w-[320px] flex justify-between items-center mt-8 px-2">
-          <button className="flex items-center gap-2 text-secondary-fixed-dim hover:text-on-background transition-colors">
-            <span className="material-symbols-outlined text-[20px]">speaker_group</span>
+          <button
+            className={`flex items-center gap-2 transition-colors ${isAutoplay ? 'text-primary' : 'text-secondary-fixed-dim hover:text-on-background'}`}
+            onClick={onToggleAutoplay}
+            title="Auto-play (Radio Mode)"
+          >
+            <span className="material-symbols-outlined text-[24px]">all_inclusive</span>
           </button>
           {sleepTimer && (
             <span className="text-label-sm text-label-sm text-primary">{formatTimerDisplay(sleepTimer)}</span>
