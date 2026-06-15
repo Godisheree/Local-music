@@ -161,6 +161,7 @@ export function useAudio() {
                 // YT.PlayerState: 1 = PLAYING, 2 = PAUSED, 0 = ENDED
                 if (e.data === 1) {
                   setIsPlaying(true)
+                  setLoading(false)
                   setDuration(e.target.getDuration() || 0)
                   startTimer()
                 } else if (e.data === 2) {
@@ -181,10 +182,8 @@ export function useAudio() {
             }
           });
         } else {
-          ytPlayerRef.current.cueVideoById({ videoId });
+          ytPlayerRef.current.loadVideoById({ videoId });
           ytPlayerRef.current.setVolume(volumeRef.current * 100);
-          ytPlayerRef.current.playVideo();
-          // JANGAN setLoading(false) di sini — tunggu onStateChange PLAYING
         }
       });
     } else {
