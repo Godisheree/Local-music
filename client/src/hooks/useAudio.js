@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Howl } from 'howler'
 
 let ytReadyCallbacks = [];
@@ -38,6 +38,8 @@ export function useAudio() {
   const activePlayerRef = useRef(null) // 'howler' or 'youtube'
   const intervalRef = useRef(null)
   const seekingRef = useRef(false)
+  const volumeRef = useRef(0.7) // Track volume via ref untuk avoid stale closure
+  const ytIdCacheRef = useRef(new Map()) // Cache YouTube IDs tanpa mutasi song object
 
   const clearTimer = () => {
     if (intervalRef.current) {
@@ -83,6 +85,12 @@ export function useAudio() {
       setCurrentSong(song)
 
       let videoId = song.youtube_id || song.youtubeId;
+      
+      // Cek cache terlebih dahulu
+      if (!videoId && ytIdCacheRef.current.has(song.mbid || song.id)) {
+        videoId = ytIdCacheRef.current.get(song.mbid || song.id);
+      }
+      
       if (!videoId) {
         if (song.filepath?.startsWith('youtube:')) {
           videoId = song.filepath.split(':')[1];
@@ -92,7 +100,10 @@ export function useAudio() {
             const res = await fetch(`${apiBase}/api/songs/get-youtube-id?title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`);
             const data = await res.json();
             videoId = data.videoId;
-            song.youtube_id = videoId; // cache locally
+            // Cache via ref, JANGAN mutasi song object
+            if (videoId && (song.mbid || song.id)) {
+              ytIdCacheRef.current.set(song.mbid || song.id, videoId);
+            }
           } catch (err) {
             console.error('Failed to get YouTube ID:', err)
             setLoading(false)
@@ -108,9 +119,14 @@ export function useAudio() {
       }
 
       loadYoutubeAPI(() => {
-        // Create container if not exists
+        // Hapus existing element sebelum buat baru untuk hindari ID duplikat
         let container = document.getElementById('yt-player-placeholder');
-        if (!container) {
+        
+        if (!ytPlayerRef.current) {
+          // Buat container baru jika belum ada
+          if (container) {
+            container.remove();
+          }
           container = document.createElement('div');
           container.id = 'yt-player-placeholder';
           container.style.position = 'absolute';
@@ -120,9 +136,7 @@ export function useAudio() {
           container.style.height = '1px';
           container.style.pointerEvents = 'none';
           document.body.appendChild(container);
-        }
 
-        if (!ytPlayerRef.current) {
           ytPlayerRef.current = new window.YT.Player('yt-player-placeholder', {
             height: '1',
             width: '1',
@@ -138,7 +152,8 @@ export function useAudio() {
             },
             events: {
               onReady: (e) => {
-                e.target.setVolume(volume * 100);
+                // Gunakan volumeRef untuk volume terkini, bukan stale closure
+                e.target.setVolume(volumeRef.current * 100);
                 e.target.playVideo();
                 setLoading(false);
               },
@@ -167,9 +182,9 @@ export function useAudio() {
           });
         } else {
           ytPlayerRef.current.cueVideoById({ videoId });
-          ytPlayerRef.current.setVolume(volume * 100);
+          ytPlayerRef.current.setVolume(volumeRef.current * 100);
           ytPlayerRef.current.playVideo();
-          setLoading(false);
+          // JANGAN setLoading(false) di sini — tunggu onStateChange PLAYING
         }
       });
     } else {
@@ -180,7 +195,7 @@ export function useAudio() {
         src: [url],
         format: [format === 'mpeg' ? 'mp3' : format],
         html5: true,
-        volume: volume,
+        volume: volumeRef.current,
         onplay: () => {
           setIsPlaying(true)
           setDuration(sound.duration() || 0)
@@ -220,7 +235,7 @@ export function useAudio() {
       soundRef.current = sound
       sound.play()
     }
-  }, [volume])
+  }, []) // Hapus volume dari deps — gunakan volumeRef
 
   const play = useCallback(() => {
     if (activePlayerRef.current === 'howler' && soundRef.current) {
@@ -253,6 +268,7 @@ export function useAudio() {
   }, [])
 
   const setVolume = useCallback((vol) => {
+    volumeRef.current = vol // Update ref untuk avoid stale closure
     setVolumeState(vol)
     if (activePlayerRef.current === 'howler' && soundRef.current) {
       soundRef.current.volume(vol)
@@ -288,7 +304,8 @@ export function useAudio() {
     }
   }, [])
 
-  return {
+  // useMemo untuk return object yang stabil — mencegah infinite re-render saat digunakan sebagai dependency
+  return useMemo(() => ({
     isPlaying,
     loading,
     currentTime,
@@ -304,5 +321,5 @@ export function useAudio() {
     setVolume,
     toggleLoopMode,
     repeatCurrentSong,
-  }
+  }), [isPlaying, loading, currentTime, duration, volume, currentSong, loopMode, load, play, pause, seek, endSeek, setVolume, toggleLoopMode, repeatCurrentSong])
 }

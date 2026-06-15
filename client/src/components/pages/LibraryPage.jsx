@@ -9,9 +9,9 @@ function LibraryPage({ songs, playlists, currentSong, isPlaying, onPlay, selecte
   const filters = ['All', 'Playlists', 'Artists', 'Albums']
 
   const filteredSongs = songs.filter(s =>
-    s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.album.toLowerCase().includes(searchQuery.toLowerCase())
+    (s.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.artist || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.album || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const currentSongList = selectedPlaylist ? selectedPlaylist.songs : filteredSongs

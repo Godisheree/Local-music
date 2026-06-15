@@ -1,12 +1,12 @@
 {
-  "name": "MusicPlayer",
-  "short_name": "Music",
-  "description": "Personal Music Streaming Player",
+  "name": "SoundScape",
+  "short_name": "SoundScape",
+  "description": "SoundScape - Personal Music Streaming Player",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#121212",
-  "background_color": "#121212",
+  "theme_color": "#121414",
+  "background_color": "#121414",
   "icons": [
     {
       "src": "/icons/icon-192.png",

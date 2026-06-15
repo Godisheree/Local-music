@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const fs = require('fs');
 const { getDb, queryAll, queryGet, queryRun } = require('../database');
 
 // Helper untuk mencari ID video YouTube

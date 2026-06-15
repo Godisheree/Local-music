@@ -111,13 +111,7 @@ async function fetchCoverArt(releaseMbid) {
     });
     if (!res.ok) {
       if (res.status === 404) return null;
-      if (res.status === 307 || res.status === 302) {
-        const location = res.headers.get('location');
-        if (location) {
-          const imgRes = await fetch(location);
-          if (imgRes.ok) return location;
-        }
-      }
+      // fetch() auto-follows redirects, no need to handle 307/302 manually
       return null;
     }
     const data = await res.json();
@@ -151,9 +145,14 @@ async function enrichSong(song) {
 
 // Reset all enriched flags
 router.post('/reset', async (req, res) => {
-  await queryRun('UPDATE songs SET enriched = 0, enriched_at = NULL');
-  progress = { running: false, total: 0, enriched: 0, pending: 0, current: null, errors: 0 };
-  res.json({ message: 'Enrichment reset' });
+  try {
+    await queryRun('UPDATE songs SET enriched = 0, enriched_at = NULL');
+    progress = { running: false, total: 0, enriched: 0, pending: 0, current: null, errors: 0 };
+    res.json({ message: 'Enrichment reset' });
+  } catch (err) {
+    console.error('Reset enrichment error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/start', async (req, res) => {
@@ -161,53 +160,63 @@ router.post('/start', async (req, res) => {
     return res.json({ message: 'Enrichment already running', ...progress });
   }
 
-  const songs = await queryAll(
-    'SELECT id, title, artist FROM songs WHERE enriched = 0 OR enriched IS NULL'
-  );
+  try {
+    const songs = await queryAll(
+      'SELECT id, title, artist FROM songs WHERE enriched = 0 OR enriched IS NULL'
+    );
 
-  if (songs.length === 0) {
-    return res.json({ message: 'All songs already enriched', total: 0, enriched: 0, pending: 0 });
-  }
-
-  progress = { running: true, total: songs.length, enriched: 0, pending: songs.length, current: null, errors: 0 };
-  res.json({ message: 'Enrichment started', ...progress });
-
-  (async () => {
-    const batchSize = 10;
-    for (let i = 0; i < songs.length; i += batchSize) {
-      const batch = songs.slice(i, i + batchSize);
-      const ops = [];
-
-      for (const song of batch) {
-        progress.current = `${song.artist} - ${song.title}`;
-        try {
-          const data = await enrichSong(song);
-          if (data) {
-            ops.push({
-              sql: 'UPDATE songs SET mbid=?, release_mbid=?, year=?, genre=?, cover_art_url=?, enriched=1, enriched_at=? WHERE id=?',
-              params: [data.mbid, data.release_mbid, data.year, data.genre, data.cover_art_url, data.enriched_at, song.id],
-            });
-            progress.enriched++;
-          } else {
-            progress.errors++;
-          }
-        } catch (err) {
-          console.error(`Enrichment error for ${song.title}:`, err.message);
-          progress.errors++;
-        }
-        progress.pending = songs.length - progress.enriched - progress.errors;
-        await sleep(RATE_LIMIT_MS);
-      }
-
-      if (ops.length > 0) {
-        await queryRunBatch(ops);
-      }
+    if (songs.length === 0) {
+      return res.json({ message: 'All songs already enriched', total: 0, enriched: 0, pending: 0 });
     }
 
-    progress.running = false;
-    progress.current = null;
-    console.log(`Enrichment complete: ${progress.enriched} enriched, ${progress.errors} not found`);
-  })();
+    progress = { running: true, total: songs.length, enriched: 0, pending: songs.length, current: null, errors: 0 };
+    res.json({ message: 'Enrichment started', ...progress });
+
+    (async () => {
+      try {
+        const batchSize = 10;
+        for (let i = 0; i < songs.length; i += batchSize) {
+          const batch = songs.slice(i, i + batchSize);
+          const ops = [];
+
+          for (const song of batch) {
+            progress.current = `${song.artist} - ${song.title}`;
+            try {
+              const data = await enrichSong(song);
+              if (data) {
+                ops.push({
+                  sql: 'UPDATE songs SET mbid=?, release_mbid=?, year=?, genre=?, cover_art_url=?, enriched=1, enriched_at=? WHERE id=?',
+                  params: [data.mbid, data.release_mbid, data.year, data.genre, data.cover_art_url, data.enriched_at, song.id],
+                });
+                progress.enriched++;
+              } else {
+                progress.errors++;
+              }
+            } catch (err) {
+              console.error(`Enrichment error for ${song.title}:`, err.message);
+              progress.errors++;
+            }
+            progress.pending = songs.length - progress.enriched - progress.errors;
+            await sleep(RATE_LIMIT_MS);
+          }
+
+          if (ops.length > 0) {
+            await queryRunBatch(ops);
+          }
+        }
+      } catch (err) {
+        console.error('Enrichment batch error:', err.message);
+      } finally {
+        // Selalu reset running state, bahkan jika error
+        progress.running = false;
+        progress.current = null;
+        console.log(`Enrichment complete: ${progress.enriched} enriched, ${progress.errors} not found`);
+      }
+    })();
+  } catch (err) {
+    console.error('Failed to start enrichment:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/status', (req, res) => {
@@ -215,7 +224,7 @@ router.get('/status', (req, res) => {
 });
 
 router.post('/song/:id', async (req, res) => {
-  const song = await queryGet('SELECT id, title, artist FROM songs WHERE id = ?', [req.params.id]);
+  const song = await queryGet('SELECT id, title, artist FROM songs WHERE id = ?', [+req.params.id]);
   if (!song) return res.status(404).json({ error: 'Song not found' });
 
   try {

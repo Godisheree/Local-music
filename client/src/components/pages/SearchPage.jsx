@@ -17,10 +17,14 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
     { name: 'R&B', gradient: 'from-[#654ea3] to-[#3b2d6b]' },
   ]
 
-  // Search online & local when query changes
+  // Search online & local when query changes (debounced)
   useEffect(() => {
-    if (searchQuery.trim()) {
-      setLoadingOnline(true)
+    if (!searchQuery.trim()) {
+      setOnlineSongs([])
+      return
+    }
+    setLoadingOnline(true)
+    const timer = setTimeout(() => {
       axios.get(`/api/songs/search-online?query=${encodeURIComponent(searchQuery)}`)
         .then(({ data }) => {
           setOnlineSongs(data)
@@ -30,9 +34,8 @@ function SearchPage({ songs, searchQuery, setSearchQuery, onPlay, currentSong, i
           console.error('Online search failed:', err)
           setLoadingOnline(false)
         })
-    } else {
-      setOnlineSongs([])
-    }
+    }, 400)
+    return () => clearTimeout(timer)
   }, [searchQuery])
 
   const filteredLocalSongs = searchQuery.trim()

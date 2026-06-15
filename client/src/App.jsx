@@ -39,6 +39,12 @@ function App() {
   const audio = useAudio()
   const spotify = useSpotify()
 
+  // Refs untuk stable references di callbacks (avoid stale closures)
+  const audioRef = useRef(audio)
+  audioRef.current = audio
+  const songsRef = useRef(songs)
+  songsRef.current = songs
+
   const getStreamUrl = (songId) => `${API_BASE}/api/songs/${songId}/stream`
 
   const fetchSongs = useCallback(async () => {
@@ -57,26 +63,39 @@ function App() {
 
   useEffect(() => { fetchSongs(); fetchPlaylists() }, [fetchSongs, fetchPlaylists])
 
+  // Cleanup enrichPollRef saat unmount — fix memory leak
+  useEffect(() => {
+    return () => {
+      if (enrichPollRef.current) {
+        clearInterval(enrichPollRef.current)
+        enrichPollRef.current = null
+      }
+    }
+  }, [])
+
+  // Song ended handler — gunakan spesifik deps, bukan seluruh audio object
   useEffect(() => {
     const handleSongEnded = () => {
-      if (audio.loopMode === 'one') {
-        audio.repeatCurrentSong()
+      const a = audioRef.current
+      if (a.loopMode === 'one') {
+        a.repeatCurrentSong()
       } else {
-        if (queue.length === 0 || !audio.currentSong) return
-        const idx = queue.findIndex(s => s.id === audio.currentSong.id)
+        if (queue.length === 0 || !a.currentSong) return
+        const idx = queue.findIndex(s => s.id === a.currentSong.id)
         if (idx < queue.length - 1) {
           const next = queue[idx + 1]
-          audio.load(getStreamUrl(next.id), next, next.format || 'mp3')
-        } else if (audio.loopMode === 'all' && queue.length > 0) {
+          a.load(getStreamUrl(next.id), next, next.format || 'mp3')
+        } else if (a.loopMode === 'all' && queue.length > 0) {
           const first = queue[0]
-          audio.load(getStreamUrl(first.id), first, first.format || 'mp3')
+          a.load(getStreamUrl(first.id), first, first.format || 'mp3')
         }
       }
     }
     window.addEventListener('song-ended', handleSongEnded)
     return () => window.removeEventListener('song-ended', handleSongEnded)
-  }, [queue, audio])
+  }, [queue]) // Hanya queue sebagai dependency — audio diakses via ref
 
+  // Sleep timer — gunakan sleepTimer langsung sebagai dependency agar re-create saat reset
   useEffect(() => {
     if (!sleepTimer) {
       if (sleepTimerRef.current) { clearInterval(sleepTimerRef.current); sleepTimerRef.current = null }
@@ -84,31 +103,45 @@ function App() {
     }
     sleepTimerRef.current = setInterval(() => {
       setSleepTimer(prev => {
-        if (!prev || prev <= 1) { audio.pause(); return null }
+        if (!prev || prev <= 1) { audioRef.current.pause(); return null }
         return prev - 1
       })
     }, 1000)
     return () => { if (sleepTimerRef.current) { clearInterval(sleepTimerRef.current); sleepTimerRef.current = null } }
-  }, [!!sleepTimer])
+  }, [sleepTimer]) // Fix: gunakan sleepTimer bukan !!sleepTimer
 
   const playSong = useCallback((song, songList = null) => {
     if (songList) setQueue(songList)
-    else setQueue(songs)
-    audio.load(getStreamUrl(song.id), song, song.format || 'mp3')
-  }, [audio, songs])
+    else setQueue(songsRef.current)
+    audioRef.current.load(getStreamUrl(song.id), song, song.format || 'mp3')
+  }, []) // Stable: gunakan refs
 
+  // Fix: Shuffle mode sekarang berfungsi!
   const playNext = useCallback(() => {
-    if (queue.length === 0 || !audio.currentSong) return
-    const idx = queue.findIndex(s => s.id === audio.currentSong.id)
+    const a = audioRef.current
+    if (queue.length === 0 || !a.currentSong) return
+    
+    if (isShuffle) {
+      // Random song yang berbeda dari yang sedang diputar
+      const otherSongs = queue.filter(s => s.id !== a.currentSong.id)
+      if (otherSongs.length > 0) {
+        const randomIdx = Math.floor(Math.random() * otherSongs.length)
+        playSong(otherSongs[randomIdx], queue)
+      }
+      return
+    }
+    
+    const idx = queue.findIndex(s => s.id === a.currentSong.id)
     if (idx < queue.length - 1) playSong(queue[idx + 1], queue)
-    else if (audio.loopMode === 'all') playSong(queue[0], queue)
-  }, [queue, audio.currentSong, audio.loopMode, playSong])
+    else if (a.loopMode === 'all') playSong(queue[0], queue)
+  }, [queue, isShuffle, playSong])
 
   const playPrev = useCallback(() => {
-    if (queue.length === 0 || !audio.currentSong) return
-    const idx = queue.findIndex(s => s.id === audio.currentSong.id)
+    const a = audioRef.current
+    if (queue.length === 0 || !a.currentSong) return
+    const idx = queue.findIndex(s => s.id === a.currentSong.id)
     if (idx > 0) playSong(queue[idx - 1], queue)
-  }, [queue, audio.currentSong, playSong])
+  }, [queue, playSong])
 
   const scanLibrary = async () => {
     setScanning(true)
@@ -190,9 +223,10 @@ function App() {
     } catch (err) { console.error('Failed to delete playlist:', err) }
   }
 
+  // Fix: cancelSleepTimer cukup set null, useEffect yang handle cleanup
   const setSleepTimerMinutes = (minutes) => { setSleepTimer(minutes * 60); setShowTimerModal(false) }
   const setSleepTimerCustom = (minutes) => { if (minutes > 0) { setSleepTimer(minutes * 60); setShowTimerModal(false) } }
-  const cancelSleepTimer = () => { setSleepTimer(null); if (sleepTimerRef.current) clearInterval(sleepTimerRef.current) }
+  const cancelSleepTimer = () => { setSleepTimer(null) }
   const formatTimerDisplay = (seconds) => {
     if (!seconds) return ''
     const mins = Math.floor(seconds / 60)
@@ -248,7 +282,7 @@ function App() {
           <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-variant flex items-center justify-center">
             <span className="material-symbols-outlined text-on-surface-variant text-[20px]">person</span>
           </div>
-          <h1 className="text-headline-md text-headline-md text-primary font-bold">SoundScape</h1>
+          <h1 className="text-headline-md text-primary font-bold">SoundScape</h1>
         </div>
         <div className="flex items-center gap-1">
           <button

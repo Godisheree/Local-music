@@ -49,10 +49,17 @@ router.post('/:id/add-song', async (req, res) => {
     if (!songId) return res.status(400).json({ error: 'songId is required' });
 
     const playlistId = +req.params.id;
+    
+    // Cek apakah lagu sudah ada di playlist
+    const existing = await queryGet('SELECT id FROM playlist_songs WHERE playlistId = ? AND songId = ?', [playlistId, +songId]);
+    if (existing) {
+      return res.status(200).json({ message: 'Song already in playlist', duplicate: true });
+    }
+
     const maxPos = await queryGet('SELECT MAX(position) as maxPos FROM playlist_songs WHERE playlistId = ?', [playlistId]);
     const position = (maxPos?.maxPos || 0) + 1;
 
-    await queryRun('INSERT OR IGNORE INTO playlist_songs (playlistId, songId, position) VALUES (?, ?, ?)', [playlistId, +songId, position]);
+    await queryRun('INSERT INTO playlist_songs (playlistId, songId, position) VALUES (?, ?, ?)', [playlistId, +songId, position]);
     res.json({ message: 'Song added to playlist' });
   } catch (err) {
     res.status(500).json({ error: err.message });

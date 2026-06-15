@@ -44,10 +44,15 @@ async function queryRun(sql, params = []) {
 
 async function queryRunBatch(operations) {
   const db = getDb();
-  for (const { sql, params } of operations) {
-    await db.execute({ sql, args: params || [] });
-  }
-  return { changes: 0 };
+  // Gunakan Turso batch API untuk 1 round-trip alih-alih N round-trip
+  const statements = operations.map(({ sql, params }) => ({
+    sql,
+    args: params || []
+  }));
+  const results = await db.batch(statements);
+  // Accumulate total changes
+  const totalChanges = results.reduce((sum, r) => sum + (r.rowsAffected || 0), 0);
+  return { changes: totalChanges };
 }
 
 async function initDatabase() {

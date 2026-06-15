@@ -1,12 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const SpotifyWebApi = require('spotify-web-api-node');
+const crypto = require('crypto');
 
-const spotifyApi = new SpotifyWebApi({
-  clientId: process.env.SPOTIFY_CLIENT_ID,
-  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  redirectUri: process.env.SPOTIFY_REDIRECT_URI,
-});
+// Helper: buat instance SpotifyWebApi baru per-request untuk menghindari race condition
+function createSpotifyApi(accessToken = null) {
+  const api = new SpotifyWebApi({
+    clientId: process.env.SPOTIFY_CLIENT_ID,
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+    redirectUri: process.env.SPOTIFY_REDIRECT_URI,
+  });
+  if (accessToken) api.setAccessToken(accessToken);
+  return api;
+}
 
 // Generate authorization URL
 router.get('/login', (req, res) => {
@@ -18,7 +24,10 @@ router.get('/login', (req, res) => {
     'playlist-read-collaborative',
   ];
   
-  const authorizeURL = spotifyApi.createAuthorizeURL(scopes, 'state');
+  const spotifyApi = createSpotifyApi();
+  // Generate random state untuk prevent CSRF
+  const state = crypto.randomBytes(16).toString('hex');
+  const authorizeURL = spotifyApi.createAuthorizeURL(scopes, state);
   res.json({ url: authorizeURL });
 });
 
@@ -31,16 +40,13 @@ router.get('/callback', async (req, res) => {
   }
 
   try {
+    const spotifyApi = createSpotifyApi();
     const data = await spotifyApi.authorizationCodeGrant(code);
     const { access_token, refresh_token, expires_in } = data.body;
 
-    spotifyApi.setAccessToken(access_token);
-    if (refresh_token) {
-      spotifyApi.setRefreshToken(refresh_token);
-    }
-
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl = `${frontendUrl}/?access_token=${access_token}&refresh_token=${refresh_token || ''}&expires_in=${expires_in}`;
+    // Gunakan hash fragment (#) bukan query params (?) agar token tidak terlog di server
+    const redirectUrl = `${frontendUrl}/#access_token=${access_token}&refresh_token=${refresh_token || ''}&expires_in=${expires_in}`;
     res.redirect(redirectUrl);
   } catch (err) {
     console.error('Error during authorization:', err);
@@ -58,6 +64,7 @@ router.post('/refresh', async (req, res) => {
   }
 
   try {
+    const spotifyApi = createSpotifyApi();
     spotifyApi.setRefreshToken(refresh_token);
     const data = await spotifyApi.refreshAccessToken();
     const { access_token, expires_in } = data.body;
@@ -79,10 +86,7 @@ router.get('/search/tracks', async (req, res) => {
   }
 
   try {
-    if (access_token) {
-      spotifyApi.setAccessToken(access_token);
-    }
-
+    const spotifyApi = createSpotifyApi(access_token);
     const data = await spotifyApi.searchTracks(q, { limit });
     res.json(data.body.tracks.items);
   } catch (err) {
@@ -100,7 +104,7 @@ router.get('/me', async (req, res) => {
   }
 
   try {
-    spotifyApi.setAccessToken(access_token);
+    const spotifyApi = createSpotifyApi(access_token);
     const data = await spotifyApi.getMe();
     res.json(data.body);
   } catch (err) {
