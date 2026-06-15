@@ -129,17 +129,19 @@ export function useAudio() {
           }
           container = document.createElement('div');
           container.id = 'yt-player-placeholder';
-          container.style.position = 'absolute';
-          container.style.top = '-9999px';
-          container.style.left = '-9999px';
-          container.style.width = '1px';
-          container.style.height = '1px';
+          container.style.position = 'fixed';
+          container.style.top = '0';
+          container.style.left = '0';
+          container.style.width = '200px';
+          container.style.height = '200px';
+          container.style.opacity = '0.01';
           container.style.pointerEvents = 'none';
+          container.style.zIndex = '-1000';
           document.body.appendChild(container);
 
           ytPlayerRef.current = new window.YT.Player('yt-player-placeholder', {
-            height: '1',
-            width: '1',
+            height: '200',
+            width: '200',
             videoId: videoId,
             playerVars: {
               autoplay: 1,
@@ -182,7 +184,8 @@ export function useAudio() {
             }
           });
         } else {
-          ytPlayerRef.current.loadVideoById({ videoId });
+          ytPlayerRef.current.loadVideoById(videoId);
+          ytPlayerRef.current.playVideo();
           ytPlayerRef.current.setVolume(volumeRef.current * 100);
         }
       });
